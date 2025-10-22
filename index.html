@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Region Selector</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+            text-align: center;
+        }
+        
+        #submit-btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        #submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        #submit-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        #submit-btn.success {
+            background: linear-gradient(135deg, #667eea 0%, #48bb78 100%);
+        }
+        
+        #submit-btn.error {
+            background: linear-gradient(135deg, #f56565 0%, #ed8936 100%);
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            max-width: 250px;
+        }
+        
+        .info-panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-panel .user-id {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3748;
+            word-break: break-all;
+        }
+        
+        .info-panel .coordinates {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 12px;
+            color: #718096;
+        }
+        
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            max-width: 280px;
+        }
+        
+        .instructions h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .radius-control {
+            margin-bottom: 15px;
+        }
+        
+        .radius-control label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #4a5568;
+        }
+        
+        .radius-control input {
+            width: 100%;
+        }
+        
+        #radius-value {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .controls.loading .loading-spinner {
+            display: block;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 640px) {
+            .instructions {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                max-width: none;
+            }
+            
+            .info-panel {
+                top: auto;
+                bottom: 100px;
+                right: 10px;
+            }
+            
+            .controls {
+                bottom: 20px;
+                width: calc(100% - 20px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="instructions">
+        <h3>📍 How to Select Your Region</h3>
+        <ol>
+            <li>Drag the circle to your desired location</li>
+            <li>Adjust the radius using the slider</li>
+            <li>Click "Submit Selection" when ready</li>
+        </ol>
+    </div>
+    
+    <div class="info-panel">
+        <h3>Session Info</h3>
+        <div class="user-id" id="userId">Loading...</div>
+        <div class="coordinates" id="coordinates">
+            Lat: <span id="lat">--</span><br>
+            Lng: <span id="lng">--</span>
+        </div>
+    </div>
+    
+    <div class="controls" id="controls">
+        <div class="loading-spinner"></div>
+        <div class="radius-control">
+            <label for="radius-slider">
+                Radius: <span id="radius-value">300 km</span>
+            </label>
+            <input type="range" id="radius-slider" min="50" max="1000" value="300" step="50">
+        </div>
+        <button id="submit-btn">Submit Selection</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Configuration - REPLACE WITH YOUR EMAIL
+        const YOUR_EMAIL = 'YOUR-EMAIL@EXAMPLE.COM'; // ← CHANGE THIS!
+        
+        // Get user ID from URL or generate one
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user') || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        document.getElementById('userId').textContent = userId;
+        
+        // Initialize map - centered on USA
+        const map = L.map('map').setView([39.8283, -98.5795], 4);
+        
+        // Add map tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Create draggable circle
+        let circle = L.circle([39.8283, -98.5795], {
+            radius: 300000, // 300km default
+            color: '#667eea',
+            fillColor: '#764ba2',
+            fillOpacity: 0.2,
+            weight: 3
+        }).addTo(map);
+        
+        // Update coordinates display
+        function updateCoordinates() {
+            const center = circle.getLatLng();
+            document.getElementById('lat').textContent = center.lat.toFixed(4);
+            document.getElementById('lng').textContent = center.lng.toFixed(4);
+        }
+        updateCoordinates();
+        
+        // Make circle draggable
+        let isDragging = false;
+        
+        circle.on('mousedown', function(e) {
+            isDragging = true;
+            map.dragging.disable();
+            circle.setStyle({ fillOpacity: 0.4 });
+        });
+        
+        map.on('mousemove', function(e) {
+            if (isDragging) {
+                circle.setLatLng(e.latlng);
+                updateCoordinates();
+            }
+        });
+        
+        map.on('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                map.dragging.enable();
+                circle.setStyle({ fillOpacity: 0.2 });
+            }
+        });
+        
+        // Touch support for mobile
+        circle.on('touchstart', function(e) {
+            isDragging = true;
+            map.dragging.disable();
+            circle.setStyle({ fillOpacity: 0.4 });
+        });
+        
+        map.on('touchmove', function(e) {
+            if (isDragging && e.touches.length === 1) {
+                const touch = e.touches[0];
+                const latlng = map.containerPointToLatLng([touch.clientX, touch.clientY]);
+                circle.setLatLng(latlng);
+                updateCoordinates();
+            }
+        });
+        
+        map.on('touchend', function() {
+            if (isDragging) {
+                isDragging = false;
+                map.dragging.enable();
+                circle.setStyle({ fillOpacity: 0.2 });
+            }
+        });
+        
+        // Radius slider
+        const radiusSlider = document.getElementById('radius-slider');
+        const radiusValue = document.getElementById('radius-value');
+        
+        radiusSlider.addEventListener('input', function() {
+            const km = this.value;
+            radiusValue.textContent = `${km} km`;
+            circle.setRadius(km * 1000); // Convert to meters
+        });
+        
+        // Submit handler
+        document.getElementById('submit-btn').onclick = async function() {
+            const btn = this;
+            const controls = document.getElementById('controls');
+            
+            // Disable and show loading
+            btn.disabled = true;
+            controls.classList.add('loading');
+            btn.textContent = 'Submitting...';
+            
+            // Get current selection data
+            const bounds = map.getBounds();
+            const center = circle.getLatLng();
+            const radiusKm = Math.round(circle.getRadius() / 1000);
+            
+            // Create form data for FormSubmit
+            const formData = new FormData();
+            
+            // Add all the selection data
+            formData.append('_subject', `🗺️ Map Selection from ${userId}`);
+            formData.append('User_ID', userId);
+            formData.append('Timestamp', new Date().toLocaleString());
+            formData.append('Center_Latitude', center.lat.toFixed(6));
+            formData.append('Center_Longitude', center.lng.toFixed(6));
+            formData.append('Radius_KM', radiusKm);
+            formData.append('Bounds_North', bounds.getNorth().toFixed(6));
+            formData.append('Bounds_South', bounds.getSouth().toFixed(6));
+            formData.append('Bounds_East', bounds.getEast().toFixed(6));
+            formData.append('Bounds_West', bounds.getWest().toFixed(6));
+            formData.append('Map_Link', `https://www.openstreetmap.org/?mlat=${center.lat}&mlon=${center.lng}&zoom=8`);
+            
+            // FormSubmit configuration
+            formData.append('_captcha', 'false'); // Disable captcha for better UX
+            formData.append('_template', 'table'); // Use table format in email
+            
+            try {
+                const response = await fetch(`https://formsubmit.co/${YOUR_EMAIL}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                controls.classList.remove('loading');
+                
+                if (response.ok) {
+                    // Success!
+                    btn.textContent = '✅ Selection Submitted!';
+                    btn.className = 'success';
+                    
+                    // Reset after 3 seconds
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.textContent = 'Submit Selection';
+                        btn.className = '';
+                    }, 3000);
+                    
+                } else {
+                    throw new Error('Submission failed');
+                }
+                
+            } catch (error) {
+                console.error('Submission error:', error);
+                controls.classList.remove('loading');
+                
+                // Error state
+                btn.textContent = '❌ Failed - Please Try Again';
+                btn.className = 'error';
+                btn.disabled = false;
+                
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    btn.textContent = 'Submit Selection';
+                    btn.className = '';
+                }, 3000);
+            }
+        };
+        
+        // Log session start
+        console.log(`Map selector initialized for user: ${userId}`);
+    </script>
+</body>
+</html>
